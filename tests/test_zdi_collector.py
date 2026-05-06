@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from zdi_collector import fetch_url, scrape_listing
+from zdi_collector import fetch_url, scrape_listing, scrape_detail
 
 
 class TestFetchUrl(unittest.TestCase):
@@ -70,6 +70,63 @@ class TestScrapeListing(unittest.TestCase):
         mock_fetch.return_value = None
         result = scrape_listing(2026)
         self.assertEqual(result, [])
+
+
+class TestScrapeDetail(unittest.TestCase):
+    DETAIL_HTML = """
+    <html><body>
+    <h2>QNAP TS-453E QVRPro excpostgres Exposed Dangerous Method Remote Code Execution Vulnerability</h2>
+    <h3>ZDI-26-292 ZDI-CAN-28327</h3>
+    <table>
+    <tr><td>CVE ID</td><td>CVE-2026-22898</td></tr>
+    <tr><td>CVSS SCORE</td><td>8.8, AV:A/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H</td></tr>
+    <tr><td>AFFECTED VENDORS</td><td>QNAP</td></tr>
+    <tr><td>AFFECTED PRODUCTS</td><td>TS-453E</td></tr>
+    <tr><td>VULNERABILITY DETAILS</td><td>This vulnerability allows network-adjacent attackers...</td></tr>
+    </table>
+    <p>April 15th, 2026</p>
+    </body></html>
+    """
+
+    @patch("zdi_collector.fetch_url")
+    def test_parses_all_fields(self, mock_fetch):
+        mock_fetch.return_value = self.DETAIL_HTML
+        result = scrape_detail("ZDI-26-292")
+        self.assertEqual(result["zdi_id"], "ZDI-26-292")
+        self.assertEqual(result["vendor"], "QNAP")
+        self.assertEqual(result["product"], "TS-453E")
+        self.assertEqual(result["version_affected"], None)
+        self.assertEqual(result["cve_id"], "CVE-2026-22898")
+        self.assertEqual(result["cvss_score"], 8.8)
+        self.assertEqual(result["cvss_vector"], "AV:A/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
+        self.assertEqual(result["published_date"], "2026-04-15")
+
+    @patch("zdi_collector.fetch_url")
+    def test_returns_none_on_fetch_failure(self, mock_fetch):
+        mock_fetch.return_value = None
+        result = scrape_detail("ZDI-26-292")
+        self.assertIsNone(result)
+
+    @patch("zdi_collector.fetch_url")
+    def test_handles_missing_cve(self, mock_fetch):
+        html_no_cve = """
+        <html><body>
+        <h2>Some Title</h2>
+        <h3>ZDI-26-275 ZDI-CAN-27212</h3>
+        <table>
+        <tr><td>CVSS SCORE</td><td>8.8</td></tr>
+        <tr><td>AFFECTED VENDORS</td><td>Microsoft</td></tr>
+        <tr><td>AFFECTED PRODUCTS</td><td>Qlib</td></tr>
+        </table>
+        <p>April 15th, 2026</p>
+        </body></html>
+        """
+        mock_fetch.return_value = html_no_cve
+        result = scrape_detail("ZDI-26-275")
+        self.assertEqual(result["cve_id"], None)
+        self.assertEqual(result["cvss_score"], 8.8)
+        self.assertEqual(result["vendor"], "Microsoft")
+        self.assertEqual(result["product"], "Qlib")
 
 
 if __name__ == "__main__":

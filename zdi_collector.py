@@ -43,3 +43,63 @@ def scrape_listing(year):
                 ids.append(first_cell)
 
     return ids
+
+
+def _parse_detail_table(soup):
+    fields = {}
+    for tr in soup.find_all("tr"):
+        cells = tr.find_all("td")
+        if len(cells) >= 2:
+            key = cells[0].get_text(strip=True)
+            value = cells[1].get_text(strip=True)
+            fields[key] = value
+    return fields
+
+
+def _parse_cvss(raw):
+    if not raw:
+        return None, None
+    parts = raw.split(",", 1)
+    score = float(parts[0].strip())
+    vector = parts[1].strip() if len(parts) > 1 else None
+    return score, vector
+
+
+def _parse_published_date(soup):
+    import re
+    for p in soup.find_all("p"):
+        text = p.get_text(strip=True)
+        match = re.match(
+            r"([A-Z][a-z]+ \d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})", text
+        )
+        if match:
+            from datetime import datetime
+            raw = match.group(1).replace("st", "").replace("nd", "").replace("rd", "").replace("th", "")
+            return datetime.strptime(raw, "%B %d, %Y").strftime("%Y-%m-%d")
+    return None
+
+
+def scrape_detail(zdi_id):
+    url = f"{BASE_URL}/advisories/{zdi_id}/"
+    html = fetch_url(url)
+    if html is None:
+        return None
+
+    soup = BeautifulSoup(html, "html.parser")
+    fields = _parse_detail_table(soup)
+
+    cvss_score, cvss_vector = _parse_cvss(fields.get("CVSS SCORE"))
+    title_el = soup.find("h2")
+    title = title_el.get_text(strip=True) if title_el else None
+
+    return {
+        "zdi_id": zdi_id,
+        "vendor": fields.get("AFFECTED VENDORS"),
+        "product": fields.get("AFFECTED PRODUCTS"),
+        "version_affected": None,
+        "cve_id": fields.get("CVE ID") or None,
+        "cvss_score": cvss_score,
+        "cvss_vector": cvss_vector,
+        "title": title,
+        "published_date": _parse_published_date(soup),
+    }
