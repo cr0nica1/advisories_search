@@ -103,3 +103,39 @@ def scrape_detail(zdi_id):
         "title": title,
         "published_date": _parse_published_date(soup),
     }
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Collect ZDI advisory data by year"
+    )
+    parser.add_argument("--year", type=int, required=True, help="Target year (e.g., 2026)")
+    parser.add_argument("--output", type=str, default=None, help="Output JSON file path")
+    parser.add_argument("--delay", type=float, default=1.0, help="Delay between requests in seconds")
+    args = parser.parse_args()
+
+    output_path = args.output or f"zdi_advisories_{args.year}.json"
+
+    print(f"Scraping ZDI advisory listing for {args.year}...")
+    advisory_ids = scrape_listing(args.year)
+    print(f"Found {len(advisory_ids)} advisories for {args.year}.")
+
+    advisories = []
+    for i, zdi_id in enumerate(advisory_ids, 1):
+        print(f"[{i}/{len(advisory_ids)}] Scraping {zdi_id}...")
+        detail = scrape_detail(zdi_id)
+        if detail:
+            advisories.append(detail)
+        else:
+            print(f"  WARNING: Failed to scrape {zdi_id}, skipping.", file=sys.stderr)
+        if i < len(advisory_ids):
+            time.sleep(args.delay)
+
+    with open(output_path, "w") as f:
+        json.dump(advisories, f, indent=2)
+
+    print(f"Wrote {len(advisories)} advisories to {output_path}")
+
+
+if __name__ == "__main__":
+    main()
