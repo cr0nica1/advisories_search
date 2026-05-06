@@ -17,7 +17,7 @@ class TestFetchUrl(unittest.TestCase):
 
     @patch("zdi_collector.requests.get")
     @patch("zdi_collector.time.sleep")
-    def test_retries_on_failure_then_succeeds(self, mock_sleep, mock_get):
+    def test_retries_on_failure_then_succeeds(self, _mock_sleep, mock_get):
         fail_response = MagicMock()
         fail_response.raise_for_status.side_effect = Exception("Connection error")
 
@@ -34,7 +34,7 @@ class TestFetchUrl(unittest.TestCase):
 
     @patch("zdi_collector.requests.get")
     @patch("zdi_collector.time.sleep")
-    def test_returns_none_after_max_retries(self, mock_sleep, mock_get):
+    def test_returns_none_after_max_retries(self, _mock_sleep, mock_get):
         fail_response = MagicMock()
         fail_response.raise_for_status.side_effect = Exception("Connection error")
         mock_get.return_value = fail_response
@@ -125,8 +125,29 @@ class TestScrapeDetail(unittest.TestCase):
         result = scrape_detail("ZDI-26-275")
         self.assertEqual(result["cve_id"], None)
         self.assertEqual(result["cvss_score"], 8.8)
+        self.assertEqual(result["cvss_vector"], None)
         self.assertEqual(result["vendor"], "Microsoft")
         self.assertEqual(result["product"], "Qlib")
+
+    @patch("zdi_collector.fetch_url")
+    def test_handles_non_numeric_cvss(self, mock_fetch):
+        html_invalid_cvss = """
+        <html><body>
+        <h2>Some Title</h2>
+        <table>
+        <tr><td>CVSS SCORE</td><td>N/A</td></tr>
+        <tr><td>AFFECTED VENDORS</td><td>Vendor</td></tr>
+        <tr><td>AFFECTED PRODUCTS</td><td>Product</td></tr>
+        </table>
+        <p>April 15th, 2026</p>
+        </body></html>
+        """
+        mock_fetch.return_value = html_invalid_cvss
+        result = scrape_detail("ZDI-26-999")
+        self.assertEqual(result["cvss_score"], None)
+        self.assertEqual(result["cvss_vector"], None)
+        self.assertEqual(result["vendor"], "Vendor")
+        self.assertEqual(result["product"], "Product")
 
 
 if __name__ == "__main__":

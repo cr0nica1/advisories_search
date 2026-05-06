@@ -1,7 +1,9 @@
 import argparse
 import json
+import re
 import sys
 import time
+from datetime import datetime
 
 import requests
 from bs4 import BeautifulSoup
@@ -11,7 +13,7 @@ USER_AGENT = "ZDI-Collector/1.0"
 MAX_RETRIES = 3
 
 
-def fetch_url(url, delay=1):
+def fetch_url(url):
     headers = {"User-Agent": USER_AGENT}
     for attempt in range(MAX_RETRIES):
         try:
@@ -21,8 +23,16 @@ def fetch_url(url, delay=1):
         except Exception as e:
             print(f"Attempt {attempt + 1} failed for {url}: {e}", file=sys.stderr)
             if attempt < MAX_RETRIES - 1:
-                time.sleep(2 ** attempt)
+                time.sleep(_parse_retry_delay(attempt))
     return None
+
+
+def _parse_retry_delay(attempt):
+    return 2 ** attempt
+
+
+def _strip_ordinal_suffixes(value):
+    return re.sub(r"(\d)(st|nd|rd|th)", r"\1", value)
 
 
 def scrape_listing(year):
@@ -60,21 +70,22 @@ def _parse_cvss(raw):
     if not raw:
         return None, None
     parts = raw.split(",", 1)
-    score = float(parts[0].strip())
+    try:
+        score = float(parts[0].strip())
+    except ValueError:
+        return None, None
     vector = parts[1].strip() if len(parts) > 1 else None
     return score, vector
 
 
 def _parse_published_date(soup):
-    import re
     for p in soup.find_all("p"):
         text = p.get_text(strip=True)
         match = re.match(
             r"([A-Z][a-z]+ \d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})", text
         )
         if match:
-            from datetime import datetime
-            raw = match.group(1).replace("st", "").replace("nd", "").replace("rd", "").replace("th", "")
+            raw = _strip_ordinal_suffixes(match.group(1))
             return datetime.strptime(raw, "%B %d, %Y").strftime("%Y-%m-%d")
     return None
 
