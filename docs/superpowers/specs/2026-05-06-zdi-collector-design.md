@@ -4,12 +4,6 @@
 
 A CLI tool that scrapes Zero Day Initiative (ZDI) published advisories by year and outputs structured JSON with vendor, product, CVE, and CVSS data.
 
-## Data Source
-
-- **Listing page**: `https://www.zerodayinitiative.com/advisories/published/` — HTML table with all published advisories
-- **Detail pages**: `https://www.zerodayinitiative.com/advisories/{ZDI-ID}/` — structured fields per advisory
-- ZDI IDs follow the pattern `ZDI-YY-NNN` where `YY` is the two-digit year
-
 ## Data Model
 
 Each advisory record:

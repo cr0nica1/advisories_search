@@ -1,0 +1,5 @@
+.claude/
+__pycache__/
+.pytest_cache/
+tests/__pycache__/
+zid_advisories_2026.json
